@@ -146,6 +146,47 @@ app.post('/friends/request', verifyUser, async(req, res) => {
     });
 });
 
+app.post('/friends/respond', verifyUser, async (req, res) => {
+    const receiverId = req.user.id;
+    const { requester_id, action } = req.body;
+  
+    if (!['accept', 'decline'].includes(action)) {
+      return res.status(400).json({ error: "Invalid action" });
+    }
+  
+    // Find the friendship request
+    const { data: request, error: findError } = await supabase
+      .from('friends')
+      .select('*')
+      .match({
+        requester_id: requester_id,
+        receiver_id: receiverId,
+        status: 'pending'
+      })
+      .maybeSingle();
+  
+    if (findError || !request) {
+      return res.status(404).json({ error: "Friend request not found" });
+    }
+  
+    // Update the status
+    const { data: updated, error: updateError } = await supabase
+      .from('friends')
+      .update({ status: action })
+      .match({ id: request.id })
+      .select();
+  
+    if (updateError) {
+      console.error("Update error:", updateError);
+      return res.status(500).json({ error: updateError.message });
+    }
+  
+    res.status(200).json({
+      message: `Friend request ${action}ed.`,
+      friendship: updated[0]
+    });
+});
+
 app.get('/protected', verifyUser, (req, res) => {   // path, function, (request, response)
     res.json({message: `Hello ${req.user.email}`});
 });
